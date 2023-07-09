@@ -1,0 +1,163 @@
+module StabData
+implicit none
+! define global data
+   integer, parameter :: L=121,M=107,Lev=8,ITa=224,LSP=2,LST=6,LSTd=7,XXZ=35,XXT=62,XXTd=89
+   integer            :: i,j,k,irec,IT,IRLSP,IRLST,IRLSTd,IRLT,IRLZ,IRLTd
+   REAL, parameter    :: R=287.0,Cp=1004.0,RCp=R/Cp
+   real               :: T1,TH1,DZ
+ !
+    REAL, DIMENSION(L,M,LEV) ::  T,Z,Td,TH,ST
+ 	REAL, DIMENSION(L,M) :: SP
+	REAL, DIMENSION(LEV) :: P
+   DATA P /1050,100000,97500,95000,92500,90000,87500,85000/
+!   DATA LSP,LST,LSTd/2,6,7/
+!           XXZ=8+27  ;   XXT=8+2*27 ;  XXTd=8+3*27
+!
+  end module StabData
+
+
+
+
+
+Module 2 (calculations)
+module Stab_ReadWrite
+! make the global data available
+use StabData
+implicit none
+contains
+ !
+      SUBROUTINE STABIL    !  (T,Z,TH,ST,P,L,M,LEV)
+!     REAL:: T(L,M,LEV),Z(L,M,LEV),ST(L,M,LEV),TH(L,M,LEV),P(LEV)
+ !    COMMON /A1/ ITa,ITb,IRECT,IRECZ,IRECTb,IRECZb,IRECSt,P0,RCP
+!
+		DO k=1,LEV
+	      DO i=1,L
+            DO j=1,M
+		            if(k==1)then ; TH(i,j,k)=T(i,j,k) ; else
+        TH(i,j,k)=T(i,j,k)*((SP(i,j)/P(k))**RCP)	; endif
+        ENDDO
+           ENDDO
+             ENDDO
+!
+	       DO i=1,L
+             DO j=1,M
+  !      ST(i,j,1)=-9999.99
+         ST(i,j,LEV)=-9999.99
+           ENDDO
+             ENDDO
+!
+        !             DO k=2,LEV-1
+         !           DZ=Z(i,j,k+1)-Z(i,j,k)
+		         DO k=1,lev-1
+	       DO i=1,L
+           DO j=1,M
+      T1=(T(i,j,k+1)+T(i,j,1))/2.0 ; TH1=(TH(i,j,k+1)+TH(i,j,1))/2.0
+            	DZ=Z(i,j,k+1)-Z(i,j,1)
+	        IF(DZ>100.0)then
+        ST(i,j,k)=(T1/TH1)*(TH(i,j,k+1)-TH(i,j,1))/DZ
+		ELSE  ; ST(i,j,k)=-9999.99 ; ENDIF
+     !   ST(i,j,k)=ST(i,j,k)*1000.0
+           ENDDO
+           ENDDO
+                 ENDDO
+           END subroutine stabil
+ !
+      SUBROUTINE READDATA    !(T,Z,P,PP,Td,L,M,LEV,it)
+    ! REAL :: T(L,M,LEV),Z(L,M,LEV),P(L,M,LEV),Td(L,M,LEV)
+	 ! LSP=1 ; LST=2 ; LSTd=3  
+      ! COMMON /A1/ ITa,ITb,IRECT,IRECZ,IRECTb,IRECZb,IRECSt,P0,RCP
+!
+               IRLSP=(IT-1)*ITa+LSP
+               IRLST=(IT-1)*ITa+LST
+               IRLSTd=(IT-1)*ITa+LSTd               
+!
+        read(7,rec=IRLSP)((SP(i,j),i=1,L),j=M,1,-1)
+        read(7,rec=IRLST)((T(i,j,1),i=1,L),j=M,1,-1)
+        read(7,rec=IRLSTd)((Td(i,j,1),i=1,L),j=M,1,-1)
+	!
+	            DO i=1,L
+				DO j=1,M									  
+			Z(i,j,1)=0.0
+			  ENDDO ; ENDDO
+!
+  IRLT=(IT-1)*ITa+XXT ; IRLZ=(IT-1)*ITa+XXZ ; IRLTd=(IT-1)*ITa+XXTd
+!
+!
+                DO k=2,8
+ IF(IT>183)  print*,"IRLT,IRLZ,IRLTd=", IRLT,IRLZ,IRLTd
+        read(7,rec=IRLT)((T(i,j,k),i=1,L),j=M,1,-1)
+        read(7,rec=IRLZ)((Z(i,j,k),i=1,L),j=M,1,-1)
+        read(7,rec=IRLTd)((Td(i,j,k),i=1,L),j=M,1,-1)
+!
+          IRLT=IRLT-1	;  IRLZ=IRLZ-1	; IRLTd=IRLTd-1
+                ENDDO
+             !                    DO k=1,LEV
+              !                DO i=1,L
+	           !               DO j=1,M
+                !      T(i,j,k)=T(i,j,k)+273.14
+			!		          ENDDO
+			!				  ENDDO
+			!				     ENDDO
+        END subroutine READDATA
+ !
+       SUBROUTINE WRITEDATA    !(T,Z,P,PP,Td,L,M,LEV,it)
+     !REAL :: T(L,M,LEV),Z(L,M,LEV),P(L,M,LEV),Td(L,M,LEV)
+!
+      !COMMON /A1/ ITa,ITb,IRECT,IRECZ,IRECTb,IRECZb,IRECSt,P0,RCP
+!
+                PRINT*,"IT=",IT
+!
+	        WRITE(8,rec=IREC)((SP(i,j),i=1,L),j=1,M)
+	!
+		     DO k=1,Lev
+	             IREC=IREC+1
+	        WRITE(8,rec=IREC)((ST(i,j,k),i=1,L),j=1,M)
+			 ENDDO
+	!
+		     DO k=1,Lev
+		          IREC=IREC+1
+       WRITE(8,rec=IREC)((T(i,j,k),i=1,L),j=1,M)
+			 ENDDO
+  !
+		     DO k=1,Lev
+		          IREC=IREC+1
+       WRITE(8,rec=IREC)((Td(i,j,k),i=1,L),j=1,M)
+			 ENDDO
+ !
+		     DO k=1,Lev
+		          IREC=IREC+1
+       WRITE(8,rec=IREC)((Z(i,j,k),i=1,L),j=1,M)
+			 ENDDO
+		     DO k=1,Lev
+		          IREC=IREC+1
+       WRITE(8,rec=IREC)((TH(i,j,k),i=1,L),j=1,M)
+			 ENDDO
+!
+  		          IREC=IREC+1
+!
+        END subroutine writedata                           
+            end module Stab_ReadWrite
+
+Module 3 (Initiating the result files)
+
+PROGRAM Stab_main
+! include global data
+use StabData
+use Stab_ReadWrite
+!
+  implicit none
+!
+     IREC=1
+       open(7,file='D:/GRAD.Project/Jul_Aug_98.dat',form='unformatted',action='read', &
+    &  access='direct', recl=L*M*4)
+       open(8,file='D:/GRAD.Project/RES_Test_98.gra',form='unformatted',action='write',	 &
+	&  access='direct',recl=L*M*4)
+!
+                Do IT=1,247	 ! 1,247
+  CALL ReadData
+!
+  CALL Stabil
+ !
+  CALL WriteData
+                ENDDO
+    end program Stab_mai
